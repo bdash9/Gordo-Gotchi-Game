@@ -121,6 +121,25 @@ void initializePet() {
   Serial.println("Name: " + myPet.name);
 }
 
+void resetGame() {
+  Serial.println("Resetting game...");
+  
+  // Clear saved data
+  preferences.clear();
+  
+  // Reinitialize pet
+  initializePet();
+  
+  // Show birth screen
+  showBirthScreen();
+  delay(3000);
+  
+  // Save new pet
+  savePet();
+  
+  Serial.println("Game reset complete!");
+}
+
 void savePet() {
   preferences.putInt("hunger", myPet.hunger);
   preferences.putInt("energy", myPet.energy);
@@ -153,25 +172,6 @@ void loadPet() {
   
   Serial.println("Pet loaded from NVS!");
   Serial.println("Age: " + String(myPet.age) + " Health: " + String(myPet.health));
-}
-
-void resetGame() {
-  Serial.println("Resetting game...");
-  
-  // Clear all saved data
-  preferences.clear();
-  preferences.end();
-  
-  // Show reset message
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB10_tr);
-  int w = u8g2.getStrWidth("Resetting...");
-  u8g2.drawStr((128 - w) / 2, 32, "Resetting...");
-  u8g2.sendBuffer();
-  delay(1000);
-  
-  // Restart ESP32
-  ESP.restart();
 }
 
 void drawSimpleRabbitFace(int x, int y, int size) {
@@ -211,15 +211,19 @@ void showBirthScreen() {
 
 void checkButtons() {
   unsigned long currentTime = millis();
-  if (currentTime - lastButtonCheck < 200) return;
+  
+  // Better debouncing - require 300ms between presses
+  if (currentTime - lastButtonCheck < 300) return;
 
-  // Check if pet is dead - any button resets game
+  // If pet is dead, any button resets the game
   if (myPet.state == DEAD) {
     if (digitalRead(FEED_BUTTON) == LOW || 
         digitalRead(PLAY_BUTTON) == LOW || 
         digitalRead(SLEEP_BUTTON) == LOW) {
-      Serial.println("Button pressed after death - resetting game!");
+      Serial.println("Button pressed - resetting game after death");
       resetGame();
+      lastButtonCheck = currentTime;
+      delay(100);
     }
     return;
   }
@@ -229,21 +233,19 @@ void checkButtons() {
     Serial.println("Feed button pressed!");
     feedPet();
     lastButtonCheck = currentTime;
-    delay(50);
+    delay(100);
   }
-
-  if (digitalRead(PLAY_BUTTON) == LOW) {
+  else if (digitalRead(PLAY_BUTTON) == LOW) {
     Serial.println("Play button pressed!");
     playWithPet();
     lastButtonCheck = currentTime;
-    delay(50);
+    delay(100);
   }
-
-  if (digitalRead(SLEEP_BUTTON) == LOW) {
+  else if (digitalRead(SLEEP_BUTTON) == LOW) {
     Serial.println("Sleep button pressed!");
     petSleep();
     lastButtonCheck = currentTime;
-    delay(50);
+    delay(100);
   }
 }
 
@@ -351,6 +353,7 @@ void updatePetAI(unsigned long currentTime) {
     if (myPet.health <= 0) {
       myPet.state = DEAD;
       Serial.println(myPet.name + " has died... RIP");
+      Serial.println("Press any button to restart");
       savePet();
     }
 
@@ -440,19 +443,15 @@ void drawPet() {
   if (myPet.state == DEAD) {
     u8g2.setFont(u8g2_font_ncenB14_tr);
     int w1 = u8g2.getStrWidth("R.I.P");
-    u8g2.drawStr((128 - w1) / 2, 20, "R.I.P");
+    u8g2.drawStr((128 - w1) / 2, 25, "R.I.P");
     
     u8g2.setFont(u8g2_font_ncenB08_tr);
     int w2 = u8g2.getStrWidth(myPet.name.c_str());
-    u8g2.drawStr((128 - w2) / 2, 35, myPet.name.c_str());
+    u8g2.drawStr((128 - w2) / 2, 40, myPet.name.c_str());
     
-    // Add instruction
     u8g2.setFont(u8g2_font_5x7_tr);
     int w3 = u8g2.getStrWidth("Press any button");
-    u8g2.drawStr((128 - w3) / 2, 50, "Press any button");
-    int w4 = u8g2.getStrWidth("to restart");
-    u8g2.drawStr((128 - w4) / 2, 58, "to restart");
-    
+    u8g2.drawStr((128 - w3) / 2, 55, "Press any button");
     return;
   }
 
